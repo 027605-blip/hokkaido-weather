@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>千歳 天気予報サイネージ ＆ 今日は何の日</title>
+    <title>千歳 天気予報サイネージ</title>
     <style>
         /* 古い組み込みブラウザ・TV向けにプレフィックスを追加し、互換性を最強化 */
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -165,25 +165,26 @@
             overflow: hidden;
             white-space: nowrap;
             position: relative;
-            background-color: rgba(15, 23, 42, 0.6); /* 背景を暗くしてコントラストを上げる */
-            border: 2px solid rgba(71, 85, 105, 0.5); /* 枠線を追加 */
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(71, 85, 105, 0.5); 
             border-radius: 12px;
-            padding: 12px 0; /* 余白を拡大して文字の大きさに合わせる */
+            padding: 12px 0; 
             box-shadow: inset 0 4px 6px rgba(0,0,0,0.5);
         }
 
-        /* テロップテキストとアニメーション（文字を大きく見やすく） */
+        /* テロップテキストとアニメーション */
         .ticker-text {
             display: inline-block;
             padding-left: 100%; /* コンテナの右端からスタート */
             font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
-            font-size: 2.6rem; /* ★文字サイズを大幅拡大★ */
-            color: #ffffff; /* ★文字色を白にして目立たせる★ */
-            font-weight: 900; /* ★太字に★ */
-            letter-spacing: 0.1em; /* ★少し文字間隔を開ける★ */
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8); /* ★文字に影をつける★ */
-            -webkit-animation: ticker 45s linear infinite; /* ★速度を少しゆっくりに調整★ */
-            animation: ticker 45s linear infinite;
+            font-size: 2.6rem; 
+            color: #ffffff; 
+            font-weight: 900; 
+            letter-spacing: 0.1em; 
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8); 
+            /* 気象庁の文章は長いため、60秒かけてゆっくりスクロールさせます */
+            -webkit-animation: ticker 60s linear infinite; 
+            animation: ticker 60s linear infinite;
         }
 
         @-webkit-keyframes ticker {
@@ -214,7 +215,7 @@
         <div id="current-time">0000/00/00 00:00:00</div>
         
         <div class="ticker-wrap">
-            <div id="ticker-text" class="ticker-text">今日は何の日データ取得中...</div>
+            <div id="ticker-text" class="ticker-text">気象庁 天気概況データを取得中...</div>
         </div>
 
         <div class="footer-logo">WEATHER SIGNAGE SYSTEM</div>
@@ -365,17 +366,11 @@
         }
 
         /* =================================================================
-         * Wikipedia API から「今日は何の日」を取得
+         * 気象庁APIから天気概況（テロップ用）を取得
          * ================================================================= */
-        function fetchTodayEvents() {
-            var now = new Date();
-            var month = now.getMonth() + 1;
-            var date = now.getDate();
-            // タイトル例: "6月3日"
-            var title = month + '月' + date + '日';
-            
-            // ブラウザから直接取得するため origin=* を付与（CORS回避）
-            var url = 'https://ja.wikipedia.org/w/api.php?origin=*&format=json&action=query&prop=extracts&titles=' + encodeURIComponent(title) + '&explaintext=true';
+        function fetchJMATicker() {
+            // 千歳市を含む「石狩・空知・後志地方」のエリアコード: 016000
+            var url = 'https://www.jma.go.jp/bosai/forecast/data/overview_forecast/016000.json';
 
             var xhr = new XMLHttpRequest();
             xhr.open('GET', url, true);
@@ -384,79 +379,24 @@
                     if (xhr.status === 200) {
                         try {
                             var data = JSON.parse(xhr.responseText);
-                            var pages = data.query.pages;
-                            var pageId = Object.keys(pages)[0];
                             
-                            // ページが存在しないなどのエラー回避
-                            if (pageId == "-1") {
-                                document.getElementById('ticker-text').innerHTML = "【今日は何の日】本日の記念日データを取得できませんでした。";
-                                return;
-                            }
-
-                            var content = pages[pageId].extract;
-                            var eventsText = "";
-
-                            // 1. まずは「記念日・年中行事」セクションを探す（正規表現で表記揺れ対応）
-                            var sectionMatch = content.match(/==\s*(記念日・年中行事|記念日)\s*==/);
+                            // 発表エリア（例: 石狩・空知・後志地方）
+                            var targetArea = data.targetArea;
                             
-                            if (sectionMatch) {
-                                var sectionStart = sectionMatch.index;
-                                var sectionEnd = content.indexOf('\n== ', sectionStart + 10);
-                                var rawSection = content.substring(sectionStart, sectionEnd !== -1 ? sectionEnd : content.length);
-                                
-                                var lines = rawSection.split('\n');
-                                var validEvents = [];
-                                
-                                for (var i = 0; i < lines.length; i++) {
-                                    var line = lines[i].trim();
-                                    // 見出し行と空行を除外（箇条書き記号に依存せずに取得）
-                                    if (line.length > 2 && line.indexOf('==') === -1) {
-                                        validEvents.push(line);
-                                    }
-                                }
-                                
-                                if (validEvents.length > 0) {
-                                    var pickedEvents = validEvents.slice(0, 6); // 最大6個までに制限
-                                    eventsText = "【今日は何の日？ " + title + "の記念日】　★" + pickedEvents.join('　★');
-                                }
-                            }
-
-                            // 2. 記念日が取得できなかった場合は「できごと」セクションから取得する（バックアップ処理）
-                            if (!eventsText) {
-                                var historyMatch = content.match(/==\s*できごと\s*==/);
-                                if (historyMatch) {
-                                    var hStart = historyMatch.index;
-                                    var hEnd = content.indexOf('\n== ', hStart + 10);
-                                    var hRaw = content.substring(hStart, hEnd !== -1 ? hEnd : content.length);
-                                    var hLines = hRaw.split('\n');
-                                    var hEvents = [];
-                                    
-                                    for (var j = 0; j < hLines.length; j++) {
-                                        var hLine = hLines[j].trim();
-                                        // 「〇〇〇〇年 - 」から始まる行だけを歴史データとして抽出
-                                        if (hLine.length > 5 && hLine.indexOf('==') === -1 && hLine.match(/^[0-9]{1,4}年/)) {
-                                            hEvents.push(hLine);
-                                        }
-                                    }
-                                    if (hEvents.length > 0) {
-                                        // 歴史は量が多いので、最新のものからいくつかピックアップ
-                                        eventsText = "【今日は何の日？ " + title + "の過去のできごと】　★" + hEvents.slice(-6).join('　★');
-                                    }
-                                }
-                            }
-
-                            // 3. どちらもダメだった場合の最終フォールバック
-                            if (!eventsText) {
-                                eventsText = "【今日は何の日】" + title + " - 今日も一日頑張りましょう！";
-                            }
+                            // 見出しがある場合は付与（例: 大雪に関する情報など）
+                            var headline = data.headlineText ? "【" + data.headlineText + "】 " : "";
                             
-                            document.getElementById('ticker-text').innerHTML = eventsText;
+                            // 本文の改行や全角スペースを見やすく整形
+                            var text = data.text.replace(/\n/g, '　　').replace(/\u3000/g, ' ');
 
+                            var tickerMsg = "気象庁発表 (" + targetArea + ") 概況： " + headline + text;
+                            
+                            document.getElementById('ticker-text').innerHTML = tickerMsg;
                         } catch (e) {
-                            document.getElementById('ticker-text').innerHTML = "【エラー】今日は何の日のデータ解析に失敗しました。";
+                            document.getElementById('ticker-text').innerHTML = "【エラー】気象庁データの解析に失敗しました。";
                         }
                     } else {
-                        document.getElementById('ticker-text').innerHTML = "【通信エラー】今日は何の日のデータ取得に失敗しました。";
+                        document.getElementById('ticker-text').innerHTML = "【通信エラー】気象庁データの取得に失敗しました。";
                     }
                 }
             };
@@ -484,15 +424,15 @@
 
         // 初期化処理の実行
         fetchWeather();
-        fetchTodayEvents();
+        fetchJMATicker();
         updateClock();
         
         // タイマー処理
         setInterval(updateClock, 1000);
-        // 天気とWikipediaは1時間に1回更新（API負荷軽減のため）
+        // 天気予報と気象庁テロップは1時間に1回更新
         setInterval(function() {
             fetchWeather();
-            fetchTodayEvents();
+            fetchJMATicker();
         }, 3600000);
     </script>
 </body>
