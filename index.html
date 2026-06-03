@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>千歳 天気予報サイネージ ＆ 今日は何の日</title>
+    <style>
+        /* 古い組み込みブラウザ・TV向けにプレフィックスを追加し、互換性を最強化 */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; width: 100%; background-color: #0f172a; }
+        body {
+            color: #f8fafc;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            overflow: hidden;
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: flex;
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: column;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px 50px;
+            user-select: none;
+        }
+        header { text-align: center; margin-bottom: 20px; }
+        h1 { font-size: 3.8rem; font-weight: 800; letter-spacing: 0.05em; color: #38bdf8; text-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        header p { font-size: 1.8rem; color: #94a3b8; margin-top: 5px; font-weight: 500; }
+        
+        /* メインコンテナの縦幅 */
+        .forecast-container {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0 40px 0; 
+            flex: 1;
+            min-height: 0;
+        }
+
+        /* セクション共通設定 */
+        .section-box {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: flex;
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: column;
+            flex-direction: column;
+            height: 100%;
+        }
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-bottom: 15px;
+            padding-left: 15px;
+            border-left: 8px solid #38bdf8;
+            letter-spacing: 0.1em;
+        }
+        .cards-inner {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 当日エリア */
+        .today-section { flex: 3.5; margin-right: 35px; }
+        .today-section .section-title { color: #38bdf8; border-left-color: #38bdf8; }
+        .today-section .card { background-color: rgba(51, 65, 85, 0.6); border: 2px solid rgba(56, 189, 248, 0.5); }
+
+        /* 週間エリア */
+        .weekly-section { flex: 6.5; }
+        .weekly-section .section-title { color: #94a3b8; border-left-color: #475569; }
+
+        /* カードデザイン */
+        .card {
+            background-color: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            border-radius: 24px;
+            padding: 30px 10px;
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: flex;
+            -webkit-box-orient: vertical;
+            -webkit-box-direction: normal;
+            -webkit-flex-direction: column;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            flex: 1;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            min-width: 0;
+            margin: 0 8px;
+        }
+        .cards-inner .card:first-child { margin-left: 0; }
+        .cards-inner .card:last-child { margin-right: 0; }
+        
+        .date-text { font-size: 1.6rem; font-weight: 600; color: #94a3b8; }
+        .day-text { font-size: 2.2rem; font-weight: 800; margin-top: 5px; white-space: nowrap; }
+        
+        .weather-icon { font-size: 5.5rem; display: block; margin: 15px 0 10px 0; filter: drop-shadow(0 8px 8px rgba(0,0,0,0.5)); }
+        .weather-label { font-size: 1.6rem; font-weight: 700; text-align: center; margin-bottom: 12px; }
+        
+        .temp-container { width: 100%; text-align: center; font-weight: 900; font-size: 2rem; margin-top: auto; }
+        .temp-max { color: #f87171; margin-bottom: 5px; }
+        .temp-min { color: #60a5fa; }
+        
+        .day-normal { color: #e2e8f0; }
+        .day-sun { color: #f87171; }
+        .day-sat { color: #60a5fa; }
+
+        /* WBGT（暑さ指数） */
+        .wbgt-box {
+            font-size: 1.2rem;
+            font-weight: 800;
+            padding: 6px 10px;
+            border-radius: 8px;
+            margin-top: 12px;
+            display: block;
+            text-align: center;
+        }
+        .wbgt-safe { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .wbgt-warning { background-color: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .wbgt-severe { background-color: rgba(249, 115, 22, 0.2); color: #fb923c; }
+        .wbgt-danger { background-color: rgba(239, 68, 68, 0.25); color: #f87171; -webkit-animation: pulse 2s infinite; animation: pulse 2s infinite; }
+
+        @-webkit-keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+        
+        /* === フッター ＆ テロップ（マーキー）のスタイル === */
+        footer {
+            display: -webkit-box;
+            display: -webkit-flex;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(71, 85, 105, 0.4);
+            padding-top: 20px;
+            font-size: 1.8rem;
+            color: #94a3b8;
+            font-family: monospace;
+            overflow: hidden; /* テロップはみ出し防止 */
+        }
+        
+        #current-time {
+            white-space: nowrap;
+        }
+
+        .footer-logo {
+            font-size: 1.2rem;
+            letter-spacing: 0.2em;
+            color: #475569;
+            white-space: nowrap;
+        }
+
+        /* テロップコンテナ（デザインをより強調） */
+        .ticker-wrap {
+            flex: 1;
+            margin: 0 30px;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+            background-color: rgba(15, 23, 42, 0.6); /* 背景を暗くしてコントラストを上げる */
+            border: 2px solid rgba(71, 85, 105, 0.5); /* 枠線を追加 */
+            border-radius: 12px;
+            padding: 12px 0; /* 余白を拡大して文字の大きさに合わせる */
+            box-shadow: inset 0 4px 6px rgba(0,0,0,0.5);
+        }
+
+        /* テロップテキストとアニメーション（文字を大きく見やすく） */
+        .ticker-text {
+            display: inline-block;
+            padding-left: 100%; /* コンテナの右端からスタート */
+            font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            font-size: 2.6rem; /* ★文字サイズを大幅拡大★ */
+            color: #ffffff; /* ★文字色を白にして目立たせる★ */
+            font-weight: 900; /* ★太字に★ */
+            letter-spacing: 0.1em; /* ★少し文字間隔を開ける★ */
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8); /* ★文字に影をつける★ */
+            -webkit-animation: ticker 45s linear infinite; /* ★速度を少しゆっくりに調整★ */
+            animation: ticker 45s linear infinite;
+        }
+
+        @-webkit-keyframes ticker {
+            0% { -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
+            100% { -webkit-transform: translate3d(-100%, 0, 0); transform: translate3d(-100%, 0, 0); }
+        }
+        @keyframes ticker {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+
+        .status-msg { width: 100%; text-align: center; font-size: 2.2rem; color: #64748b; margin: auto; line-height: 1.6; }
+        .error-msg { color: #f87171; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>CHITOSE WEATHER SIGNAGE</h1>
+        <p>北海道（千歳） 天気予報</p>
+    </header>
+
+    <div id="forecast-container" class="forecast-container">
+        <div class="status-msg">気象データを読み込み中...</div>
+    </div>
+
+    <footer>
+        <div id="current-time">0000/00/00 00:00:00</div>
+        
+        <div class="ticker-wrap">
+            <div id="ticker-text" class="ticker-text">今日は何の日データ取得中...</div>
+        </div>
+
+        <div class="footer-logo">WEATHER SIGNAGE SYSTEM</div>
+    </footer>
+
+    <script>
+        /* =================================================================
+         * サイネージ用 オンスクリーン・デバッガー
+         * ================================================================= */
+        window.onerror = function (msg, url, line) {
+            var container = document.getElementById('forecast-container');
+            if (container) {
+                container.innerHTML = '<div class="status-msg error-msg" style="font-size:1.4rem; text-align:left; padding:20px; background:rgba(0,0,0,0.5); border-radius:12px;">' +
+                    '[システムエラー発生 / JS Crash]<br>' +
+                    'Error: ' + msg + '<br>' +
+                    'Line: ' + line + '<br>' +
+                    'URL: ' + url + '</div>';
+            }
+            return false;
+        };
+
+        function getWeatherInfo(code) {
+            var mapping = {
+                0: { icon: '☀️', label: '晴れ', color: '#fbbf24' },
+                1: { icon: '🌤️', label: '晴れ時々曇', color: '#fde68a' },
+                2: { icon: '⛅', label: '曇時々晴', color: '#cbd5e1' },
+                3: { icon: '☁️', label: '曇り', color: '#94a3b8' },
+                45: { icon: '🌫️', label: '霧', color: '#64748b' },
+                48: { icon: '🌫️', label: '霧', color: '#64748b' },
+                51: { icon: '🌦️', label: '小雨', color: '#93c5fd' },
+                53: { icon: '🌦️', label: '小雨', color: '#93c5fd' },
+                55: { icon: '🌦️', label: '小雨', color: '#93c5fd' },
+                61: { icon: '🌧️', label: '雨', color: '#60a5fa' },
+                63: { icon: '🌧️', label: '雨', color: '#3b82f6' },
+                65: { icon: '🌧️', label: '激しい雨', color: '#2563eb' },
+                71: { icon: '❄️', label: '軽雪', color: '#bae6fd' },
+                73: { icon: '❄️', label: '雪', color: '#7dd3fc' },
+                75: { icon: '❄️', label: '大雪', color: '#38bdf8' },
+                80: { icon: '🌧️', label: 'にわか雨', color: '#60a5fa' },
+                81: { icon: '🌧️', label: '強い雨', color: '#3b82f6' },
+                82: { icon: '⛈️', label: '豪雨', color: '#a855f7' },
+                85: { icon: '☃️', label: 'にわか雪', color: '#7dd3fc' },
+                86: { icon: '☃️', label: '強い雪', color: '#38bdf8' },
+                95: { icon: '⛈️', label: '雷雨', color: '#eab308' }
+            };
+            return mapping[code] || { icon: '❓', label: '不明', color: '#ffffff' };
+        }
+
+        function createWbgtHtml(wbgtValue) {
+            if (wbgtValue < 20) return '';
+            var wbgtClass = 'wbgt-safe';
+            if (wbgtValue >= 31) wbgtClass = 'wbgt-danger';
+            else if (wbgtValue >= 28) wbgtClass = 'wbgt-severe';
+            else if (wbgtValue >= 25) wbgtClass = 'wbgt-warning';
+            return '<div class="wbgt-box ' + wbgtClass + '">WBGT ' + wbgtValue + '°</div>';
+        }
+
+        var weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+
+        function fetchWeather() {
+            var lat = 42.8225;
+            var lon = 141.6447;
+            var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + 
+                      '&hourly=weather_code,temperature_2m,apparent_temperature' +
+                      '&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max' +
+                      '&timezone=Asia%2FTokyo';
+            
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        var container = document.getElementById('forecast-container');
+                        container.innerHTML = 
+                            '<div class="section-box today-section">' +
+                                '<div class="section-title">TODAY / 本日の天気</div>' +
+                                '<div id="today-cards" class="cards-inner"></div>' +
+                            '</div>' +
+                            '<div class="section-box weekly-section">' +
+                                '<div class="section-title">WEEKLY / 明日以降の予報</div>' +
+                                '<div id="weekly-cards" class="cards-inner"></div>' +
+                            '</div>';
+
+                        var todayContainer = document.getElementById('today-cards');
+                        var weeklyContainer = document.getElementById('weekly-cards');
+
+                        // 1. 当日処理
+                        var todayStr = data.daily.time[0];
+                        var todayDate = new Date(todayStr.replace(/-/g, '/'));
+                        var tMonth = todayDate.getMonth() + 1;
+                        var tDay = todayDate.getDate();
+                        var tDayIdx = todayDate.getDay();
+                        var todayDayClass = (tDayIdx === 0) ? 'day-sun' : (tDayIdx === 6) ? 'day-sat' : 'day-normal';
+
+                        var timeSlots = [ { name: '朝 (9時)', hour: 9 }, { name: '夕 (15時)', hour: 15 }, { name: '夜 (21時)', hour: 21 } ];
+
+                        for (var k = 0; k < timeSlots.length; k++) {
+                            var slot = timeSlots[k];
+                            var hIdx = slot.hour;
+                            var hWeather = getWeatherInfo(data.hourly.weather_code[hIdx]);
+                            var hTemp = Math.round(data.hourly.temperature_2m[hIdx]);
+                            var hWbgt = Math.round(data.hourly.apparent_temperature[hIdx]);
+
+                            todayContainer.innerHTML += '<div class="card">' +
+                                '<div class="date-text">' + tMonth + '/' + tDay + '</div>' +
+                                '<div class="day-text ' + todayDayClass + '">' + slot.name + '</div>' +
+                                '<div class="weather-icon" style="color: ' + hWeather.color + '">' + hWeather.icon + '</div>' +
+                                '<div class="weather-label">' + hWeather.label + '</div>' +
+                                '<div class="temp-container">' +
+                                    '<div class="temp-max">' + hTemp + '°C</div>' +
+                                    createWbgtHtml(hWbgt) +
+                                '</div>' +
+                            '</div>';
+                        }
+
+                        // 2. 翌日以降
+                        for (var i = 1; i < 7; i++) {
+                            var dateStr = data.daily.time[i];
+                            var date = new Date(dateStr.replace(/-/g, '/'));
+                            var month = date.getMonth() + 1;
+                            var day = date.getDate();
+                            var dayIndex = date.getDay();
+                            var dayClass = (dayIndex === 0) ? 'day-sun' : (dayIndex === 6) ? 'day-sat' : 'day-normal';
+                            var weather = getWeatherInfo(data.daily.weather_code[i]);
+                            var maxTemp = Math.round(data.daily.temperature_2m_max[i]);
+                            var minTemp = Math.round(data.daily.temperature_2m_min[i]);
+                            var maxWbgt = Math.round(data.daily.apparent_temperature_max[i]);
+                            
+                            weeklyContainer.innerHTML += '<div class="card">' +
+                                '<div class="date-text">' + month + '/' + day + '</div>' +
+                                '<div class="day-text ' + dayClass + '">' + weekDays[dayIndex] + '</div>' +
+                                '<div class="weather-icon" style="color: ' + weather.color + '">' + weather.icon + '</div>' +
+                                '<div class="weather-label">' + weather.label + '</div>' +
+                                '<div class="temp-container">' +
+                                    '<div class="temp-max">' + maxTemp + '°C</div>' +
+                                    '<div class="temp-min">' + minTemp + '°C</div>' +
+                                    createWbgtHtml(maxWbgt) +
+                                '</div>' +
+                            '</div>';
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        /* =================================================================
+         * Wikipedia API から「今日は何の日」を取得
+         * ================================================================= */
+        function fetchTodayEvents() {
+            var now = new Date();
+            var month = now.getMonth() + 1;
+            var date = now.getDate();
+            // タイトル例: "6月3日"
+            var title = month + '月' + date + '日';
+            
+            // ブラウザから直接取得するため origin=* を付与（CORS回避）
+            var url = 'https://ja.wikipedia.org/w/api.php?origin=*&format=json&action=query&prop=extracts&titles=' + encodeURIComponent(title) + '&explaintext=true';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            var pages = data.query.pages;
+                            var pageId = Object.keys(pages)[0];
+                            
+                            // ページが存在しないなどのエラー回避
+                            if (pageId == "-1") {
+                                document.getElementById('ticker-text').innerHTML = "【今日は何の日】本日の記念日データを取得できませんでした。";
+                                return;
+                            }
+
+                            var content = pages[pageId].extract;
+                            var eventsText = "";
+
+                            // 1. まずは「記念日・年中行事」セクションを探す（正規表現で表記揺れ対応）
+                            var sectionMatch = content.match(/==\s*(記念日・年中行事|記念日)\s*==/);
+                            
+                            if (sectionMatch) {
+                                var sectionStart = sectionMatch.index;
+                                var sectionEnd = content.indexOf('\n== ', sectionStart + 10);
+                                var rawSection = content.substring(sectionStart, sectionEnd !== -1 ? sectionEnd : content.length);
+                                
+                                var lines = rawSection.split('\n');
+                                var validEvents = [];
+                                
+                                for (var i = 0; i < lines.length; i++) {
+                                    var line = lines[i].trim();
+                                    // 見出し行と空行を除外（箇条書き記号に依存せずに取得）
+                                    if (line.length > 2 && line.indexOf('==') === -1) {
+                                        validEvents.push(line);
+                                    }
+                                }
+                                
+                                if (validEvents.length > 0) {
+                                    var pickedEvents = validEvents.slice(0, 6); // 最大6個までに制限
+                                    eventsText = "【今日は何の日？ " + title + "の記念日】　★" + pickedEvents.join('　★');
+                                }
+                            }
+
+                            // 2. 記念日が取得できなかった場合は「できごと」セクションから取得する（バックアップ処理）
+                            if (!eventsText) {
+                                var historyMatch = content.match(/==\s*できごと\s*==/);
+                                if (historyMatch) {
+                                    var hStart = historyMatch.index;
+                                    var hEnd = content.indexOf('\n== ', hStart + 10);
+                                    var hRaw = content.substring(hStart, hEnd !== -1 ? hEnd : content.length);
+                                    var hLines = hRaw.split('\n');
+                                    var hEvents = [];
+                                    
+                                    for (var j = 0; j < hLines.length; j++) {
+                                        var hLine = hLines[j].trim();
+                                        // 「〇〇〇〇年 - 」から始まる行だけを歴史データとして抽出
+                                        if (hLine.length > 5 && hLine.indexOf('==') === -1 && hLine.match(/^[0-9]{1,4}年/)) {
+                                            hEvents.push(hLine);
+                                        }
+                                    }
+                                    if (hEvents.length > 0) {
+                                        // 歴史は量が多いので、最新のものからいくつかピックアップ
+                                        eventsText = "【今日は何の日？ " + title + "の過去のできごと】　★" + hEvents.slice(-6).join('　★');
+                                    }
+                                }
+                            }
+
+                            // 3. どちらもダメだった場合の最終フォールバック
+                            if (!eventsText) {
+                                eventsText = "【今日は何の日】" + title + " - 今日も一日頑張りましょう！";
+                            }
+                            
+                            document.getElementById('ticker-text').innerHTML = eventsText;
+
+                        } catch (e) {
+                            document.getElementById('ticker-text').innerHTML = "【エラー】今日は何の日のデータ解析に失敗しました。";
+                        }
+                    } else {
+                        document.getElementById('ticker-text').innerHTML = "【通信エラー】今日は何の日のデータ取得に失敗しました。";
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        function updateClock() {
+            var now = new Date();
+            var year = now.getFullYear();
+            var month = now.getMonth() + 1;
+            var date = now.getDate();
+            var hours = now.getHours();
+            var minutes = now.getMinutes();
+            var seconds = now.getSeconds();
+            
+            if (month < 10) month = '0' + month;
+            if (date < 10) date = '0' + date;
+            if (hours < 10) hours = '0' + hours;
+            if (minutes < 10) minutes = '0' + minutes;
+            if (seconds < 10) seconds = '0' + seconds;
+            
+            var timeStr = year + '/' + month + '/' + date + ' ' + hours + ':' + minutes + ':' + seconds;
+            document.getElementById('current-time').innerHTML = timeStr;
+        }
+
+        // 初期化処理の実行
+        fetchWeather();
+        fetchTodayEvents();
+        updateClock();
+        
+        // タイマー処理
+        setInterval(updateClock, 1000);
+        // 天気とWikipediaは1時間に1回更新（API負荷軽減のため）
+        setInterval(function() {
+            fetchWeather();
+            fetchTodayEvents();
+        }, 3600000);
+    </script>
+</body>
+</html>
